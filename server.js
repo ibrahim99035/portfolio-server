@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/database');
-const redisClient = require('./config/redis');
+const path = require('path');
 
 // Load environment variables
 dotenv.config();
@@ -53,11 +53,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Connect to database
 connectDB();
 
-// // Test Redis connection
-// redisClient.ping()
-//   .then(() => console.log('✅ Redis connected successfully'))
-//   .catch(err => console.error('❌ Redis connection failed:', err.message));
-
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/certificates', certificatesRoutes);
@@ -67,6 +62,9 @@ app.use('/api/landing-pages', landingPagesRoutes);
 app.use('/api/linkedin', linkedinRoutes);
 app.use('/api/odoo', odooRoutes);
 app.use('/api/personal-info', personalInfoRoutes);
+
+// Serve static files from the dashboard directory
+app.use('/dashboard', express.static(path.join(__dirname, 'dashboard')));
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

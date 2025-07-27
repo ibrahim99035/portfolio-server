@@ -1,31 +1,29 @@
 const express = require('express');
 const { LinkedinProfile } = require('../models');
 const { authenticate, optionalAuth } = require('../middleware/auth');
-const { cache } = require('../config/redis');
+// REMOVE: const { cache } = require('../config/redis');
 
 const router = express.Router();
 
-// GET /api/linkedin - Get LinkedIn profile (public)
+/**
+ * @swagger
+ * /api/linkedin:
+ *   get:
+ *     summary: Get LinkedIn profile
+ *     tags: [LinkedIn]
+ *     responses:
+ *       200:
+ *         description: LinkedIn profile object
+ */
 router.get('/', optionalAuth, async (req, res) => {
   try {
-    const cacheKey = 'linkedin:profile';
-    
-    // Try to get from cache first
-    const cachedData = await cache.get(cacheKey);
-    if (cachedData) {
-      return res.json(cachedData);
-    }
-
     // Get the most recent profile (assuming only one profile exists)
     const profile = await LinkedinProfile.findOne().sort({ createdAt: -1 });
-    
+
     if (!profile) {
       return res.status(404).json({ error: 'LinkedIn profile not found' });
     }
-    
-    // Cache the result
-    await cache.set(cacheKey, profile);
-    
+
     res.json(profile);
   } catch (error) {
     console.error('Error fetching LinkedIn profile:', error);
@@ -33,7 +31,24 @@ router.get('/', optionalAuth, async (req, res) => {
   }
 });
 
-// POST /api/linkedin - Create or update LinkedIn profile (protected)
+/**
+ * @swagger
+ * /api/linkedin:
+ *   post:
+ *     summary: Create or update LinkedIn profile
+ *     tags: [LinkedIn]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: LinkedIn profile object
+ */
 router.post('/', authenticate, async (req, res) => {
   try {
     const profileData = req.body;
@@ -51,9 +66,6 @@ router.post('/', authenticate, async (req, res) => {
       await profile.save();
     }
 
-    // Clear cache
-    await cache.del('linkedin:profile');
-
     res.json(profile);
   } catch (error) {
     console.error('Error saving LinkedIn profile:', error);
@@ -61,7 +73,29 @@ router.post('/', authenticate, async (req, res) => {
   }
 });
 
-// PUT /api/linkedin/:id - Update specific profile (protected)
+/**
+ * @swagger
+ * /api/linkedin/{id}:
+ *   put:
+ *     summary: Update LinkedIn profile by ID
+ *     tags: [LinkedIn]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: LinkedIn profile updated
+ */
 router.put('/:id', authenticate, async (req, res) => {
   try {
     const profile = await LinkedinProfile.findById(req.params.id);
@@ -73,9 +107,6 @@ router.put('/:id', authenticate, async (req, res) => {
     Object.assign(profile, req.body);
     await profile.save();
 
-    // Clear cache
-    await cache.del('linkedin:profile');
-
     res.json(profile);
   } catch (error) {
     console.error('Error updating LinkedIn profile:', error);
@@ -83,7 +114,29 @@ router.put('/:id', authenticate, async (req, res) => {
   }
 });
 
-// POST /api/linkedin/:id/experience - Add experience (protected)
+/**
+ * @swagger
+ * /api/linkedin/{id}/experience:
+ *   post:
+ *     summary: Add experience
+ *     tags: [LinkedIn]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Experience added
+ */
 router.post('/:id/experience', authenticate, async (req, res) => {
   try {
     const profile = await LinkedinProfile.findById(req.params.id);
@@ -95,9 +148,6 @@ router.post('/:id/experience', authenticate, async (req, res) => {
     profile.experience.push(req.body);
     await profile.save();
 
-    // Clear cache
-    await cache.del('linkedin:profile');
-
     res.json(profile);
   } catch (error) {
     console.error('Error adding experience:', error);
@@ -105,7 +155,33 @@ router.post('/:id/experience', authenticate, async (req, res) => {
   }
 });
 
-// PUT /api/linkedin/:id/experience/:expId - Update experience (protected)
+/**
+ * @swagger
+ * /api/linkedin/{id}/experience/{expId}:
+ *   put:
+ *     summary: Update experience
+ *     tags: [LinkedIn]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: expId
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Experience updated
+ */
 router.put('/:id/experience/:expId', authenticate, async (req, res) => {
   try {
     const profile = await LinkedinProfile.findById(req.params.id);
@@ -122,9 +198,6 @@ router.put('/:id/experience/:expId', authenticate, async (req, res) => {
     Object.assign(experience, req.body);
     await profile.save();
 
-    // Clear cache
-    await cache.del('linkedin:profile');
-
     res.json(profile);
   } catch (error) {
     console.error('Error updating experience:', error);
@@ -132,7 +205,27 @@ router.put('/:id/experience/:expId', authenticate, async (req, res) => {
   }
 });
 
-// DELETE /api/linkedin/:id/experience/:expId - Delete experience (protected)
+/**
+ * @swagger
+ * /api/linkedin/{id}/experience/{expId}:
+ *   delete:
+ *     summary: Delete experience
+ *     tags: [LinkedIn]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: expId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Experience deleted
+ */
 router.delete('/:id/experience/:expId', authenticate, async (req, res) => {
   try {
     const profile = await LinkedinProfile.findById(req.params.id);
@@ -144,9 +237,6 @@ router.delete('/:id/experience/:expId', authenticate, async (req, res) => {
     profile.experience.id(req.params.expId).remove();
     await profile.save();
 
-    // Clear cache
-    await cache.del('linkedin:profile');
-
     res.json(profile);
   } catch (error) {
     console.error('Error deleting experience:', error);
@@ -154,8 +244,29 @@ router.delete('/:id/experience/:expId', authenticate, async (req, res) => {
   }
 });
 
-// Similar endpoints for education, skills, certifications, recommendations
-// POST /api/linkedin/:id/education - Add education
+/**
+ * @swagger
+ * /api/linkedin/{id}/education:
+ *   post:
+ *     summary: Add education
+ *     tags: [LinkedIn]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Education added
+ */
 router.post('/:id/education', authenticate, async (req, res) => {
   try {
     const profile = await LinkedinProfile.findById(req.params.id);
@@ -163,14 +274,35 @@ router.post('/:id/education', authenticate, async (req, res) => {
 
     profile.education.push(req.body);
     await profile.save();
-    await cache.del('linkedin:profile');
     res.json(profile);
   } catch (error) {
     res.status(500).json({ error: 'Failed to add education' });
   }
 });
 
-// POST /api/linkedin/:id/skills - Add skill
+/**
+ * @swagger
+ * /api/linkedin/{id}/skills:
+ *   post:
+ *     summary: Add skill
+ *     tags: [LinkedIn]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Skill added
+ */
 router.post('/:id/skills', authenticate, async (req, res) => {
   try {
     const profile = await LinkedinProfile.findById(req.params.id);
@@ -178,14 +310,35 @@ router.post('/:id/skills', authenticate, async (req, res) => {
 
     profile.skills.push(req.body);
     await profile.save();
-    await cache.del('linkedin:profile');
     res.json(profile);
   } catch (error) {
     res.status(500).json({ error: 'Failed to add skill' });
   }
 });
 
-// POST /api/linkedin/:id/certifications - Add certification
+/**
+ * @swagger
+ * /api/linkedin/{id}/certifications:
+ *   post:
+ *     summary: Add certification
+ *     tags: [LinkedIn]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Certification added
+ */
 router.post('/:id/certifications', authenticate, async (req, res) => {
   try {
     const profile = await LinkedinProfile.findById(req.params.id);
@@ -193,18 +346,32 @@ router.post('/:id/certifications', authenticate, async (req, res) => {
 
     profile.certifications.push(req.body);
     await profile.save();
-    await cache.del('linkedin:profile');
     res.json(profile);
   } catch (error) {
     res.status(500).json({ error: 'Failed to add certification' });
   }
 });
 
-// DELETE /api/linkedin/:id - Delete profile (protected)
+/**
+ * @swagger
+ * /api/linkedin/{id}:
+ *   delete:
+ *     summary: Delete LinkedIn profile
+ *     tags: [LinkedIn]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Profile deleted
+ */
 router.delete('/:id', authenticate, async (req, res) => {
   try {
     await LinkedinProfile.findByIdAndDelete(req.params.id);
-    await cache.del('linkedin:profile');
     res.json({ message: 'LinkedIn profile deleted successfully' });
   } catch (error) {
     console.error('Error deleting LinkedIn profile:', error);

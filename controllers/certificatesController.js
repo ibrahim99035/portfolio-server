@@ -1,16 +1,9 @@
 const { Certificate } = require('../models');
-const { upload, deleteFromCloudinary, extractPublicId, extractSecureUrl } = require('../config/cloudinary');
-const { cache } = require('../config/redis');
+const { deleteFromCloudinary, extractPublicId, extractSecureUrl } = require('../config/cloudinary');
 
-// GET all certificates
-const getAllCertificates = async (req, res) => {
+exports.getAllCertificates = async (req, res) => {
   try {
-    const cacheKey = 'certificates:all';
-    const cachedData = await cache.get(cacheKey);
-    if (cachedData) return res.json(cachedData);
-
     const certificates = await Certificate.find().sort({ createdAt: -1 });
-    await cache.set(cacheKey, certificates);
     res.json(certificates);
   } catch (error) {
     console.error('Error fetching certificates:', error);
@@ -18,11 +11,12 @@ const getAllCertificates = async (req, res) => {
   }
 };
 
-// GET single certificate
-const getCertificateById = async (req, res) => {
+exports.getCertificateById = async (req, res) => {
   try {
     const certificate = await Certificate.findById(req.params.id);
-    if (!certificate) return res.status(404).json({ error: 'Certificate not found' });
+    if (!certificate) {
+      return res.status(404).json({ error: 'Certificate not found' });
+    }
     res.json(certificate);
   } catch (error) {
     console.error('Error fetching certificate:', error);
@@ -30,29 +24,24 @@ const getCertificateById = async (req, res) => {
   }
 };
 
-// POST new certificate
-const createCertificate = async (req, res) => {
+exports.createCertificate = async (req, res) => {
   try {
     const { label, type, base } = req.body;
     if (!label || !type || !base) {
       return res.status(400).json({ error: 'Label, type, and base are required' });
     }
-
     const certificateData = {
       label,
       type,
       base,
       file: req.file ? req.file.originalname : base + '.pdf'
     };
-
     if (req.file) {
       certificateData.cloudinaryUrl = extractSecureUrl(req.file);
       certificateData.cloudinaryPublicId = extractPublicId(req.file);
     }
-
     const certificate = new Certificate(certificateData);
     await certificate.save();
-    await cache.del('certificates:all');
     res.status(201).json(certificate);
   } catch (error) {
     console.error('Error creating certificate:', error);
@@ -60,17 +49,16 @@ const createCertificate = async (req, res) => {
   }
 };
 
-// PUT update certificate
-const updateCertificate = async (req, res) => {
+exports.updateCertificate = async (req, res) => {
   try {
     const { label, type, base } = req.body;
     const certificate = await Certificate.findById(req.params.id);
-    if (!certificate) return res.status(404).json({ error: 'Certificate not found' });
-
+    if (!certificate) {
+      return res.status(404).json({ error: 'Certificate not found' });
+    }
     if (label) certificate.label = label;
     if (type) certificate.type = type;
     if (base) certificate.base = base;
-
     if (req.file) {
       if (certificate.cloudinaryPublicId) {
         try {
@@ -83,9 +71,7 @@ const updateCertificate = async (req, res) => {
       certificate.cloudinaryUrl = extractSecureUrl(req.file);
       certificate.cloudinaryPublicId = extractPublicId(req.file);
     }
-
     await certificate.save();
-    await cache.del('certificates:all');
     res.json(certificate);
   } catch (error) {
     console.error('Error updating certificate:', error);
@@ -93,12 +79,12 @@ const updateCertificate = async (req, res) => {
   }
 };
 
-// DELETE certificate
-const deleteCertificate = async (req, res) => {
+exports.deleteCertificate = async (req, res) => {
   try {
     const certificate = await Certificate.findById(req.params.id);
-    if (!certificate) return res.status(404).json({ error: 'Certificate not found' });
-
+    if (!certificate) {
+      return res.status(404).json({ error: 'Certificate not found' });
+    }
     if (certificate.cloudinaryPublicId) {
       try {
         await deleteFromCloudinary(certificate.cloudinaryPublicId);
@@ -106,20 +92,10 @@ const deleteCertificate = async (req, res) => {
         console.error('Error deleting from Cloudinary:', error);
       }
     }
-
     await Certificate.findByIdAndDelete(req.params.id);
-    await cache.del('certificates:all');
     res.json({ message: 'Certificate deleted successfully' });
   } catch (error) {
     console.error('Error deleting certificate:', error);
     res.status(500).json({ error: 'Failed to delete certificate' });
   }
-};
-
-module.exports = {
-  getAllCertificates,
-  getCertificateById,
-  createCertificate,
-  updateCertificate,
-  deleteCertificate
 };

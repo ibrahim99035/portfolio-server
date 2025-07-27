@@ -1,19 +1,12 @@
 const { Image } = require('../models');
-const { cache } = require('../config/redis');
-const { upload, deleteFromCloudinary, extractPublicId, extractSecureUrl } = require('../config/cloudinary');
+const { deleteFromCloudinary, extractPublicId, extractSecureUrl } = require('../config/cloudinary');
 
-const getAllImages = async (req, res) => {
+exports.getAllImages = async (req, res) => {
   try {
     const { station } = req.query;
-    const cacheKey = station ? `images:station:${station}` : 'images:all';
-    const cachedData = await cache.get(cacheKey);
-    if (cachedData) return res.json(cachedData);
-
     let query = {};
     if (station) query.station = station;
     const images = await Image.find(query).sort({ createdAt: -1 });
-
-    await cache.set(cacheKey, images);
     res.json(images);
   } catch (error) {
     console.error('Error fetching images:', error);
@@ -21,14 +14,9 @@ const getAllImages = async (req, res) => {
   }
 };
 
-const getImageStations = async (req, res) => {
+exports.getStations = async (req, res) => {
   try {
-    const cacheKey = 'images:stations';
-    const cachedData = await cache.get(cacheKey);
-    if (cachedData) return res.json(cachedData);
-
     const stations = await Image.distinct('station');
-    await cache.set(cacheKey, stations);
     res.json(stations);
   } catch (error) {
     console.error('Error fetching stations:', error);
@@ -36,10 +24,12 @@ const getImageStations = async (req, res) => {
   }
 };
 
-const getImageById = async (req, res) => {
+exports.getImageById = async (req, res) => {
   try {
     const image = await Image.findById(req.params.id);
-    if (!image) return res.status(404).json({ error: 'Image not found' });
+    if (!image) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
     res.json(image);
   } catch (error) {
     console.error('Error fetching image:', error);
@@ -47,33 +37,25 @@ const getImageById = async (req, res) => {
   }
 };
 
-const createImage = async (req, res) => {
+exports.createImage = async (req, res) => {
   try {
     const { title, description, station } = req.body;
     if (!title || !description || !station) {
       return res.status(400).json({ error: 'Title, description, and station are required' });
     }
-
     const imageData = {
       title,
       description,
       station,
       src: req.file ? '' : '/default-image.jpg'
     };
-
     if (req.file) {
       imageData.src = extractSecureUrl(req.file);
       imageData.cloudinaryUrl = extractSecureUrl(req.file);
       imageData.cloudinaryPublicId = extractPublicId(req.file);
     }
-
     const image = new Image(imageData);
     await image.save();
-
-    await cache.del('images:all');
-    await cache.del(`images:station:${station}`);
-    await cache.del('images:stations');
-
     res.status(201).json(image);
   } catch (error) {
     console.error('Error creating image:', error);
@@ -81,18 +63,16 @@ const createImage = async (req, res) => {
   }
 };
 
-const updateImage = async (req, res) => {
+exports.updateImage = async (req, res) => {
   try {
     const { title, description, station } = req.body;
     const image = await Image.findById(req.params.id);
-    if (!image) return res.status(404).json({ error: 'Image not found' });
-
-    const oldStation = image.station;
-
+    if (!image) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
     if (title) image.title = title;
     if (description) image.description = description;
     if (station) image.station = station;
-
     if (req.file) {
       if (image.cloudinaryPublicId) {
         try {
@@ -101,21 +81,11 @@ const updateImage = async (req, res) => {
           console.error('Error deleting old image:', error);
         }
       }
-
       image.src = extractSecureUrl(req.file);
       image.cloudinaryUrl = extractSecureUrl(req.file);
       image.cloudinaryPublicId = extractPublicId(req.file);
     }
-
     await image.save();
-
-    await cache.del('images:all');
-    await cache.del(`images:station:${oldStation}`);
-    if (station && station !== oldStation) {
-      await cache.del(`images:station:${station}`);
-    }
-    await cache.del('images:stations');
-
     res.json(image);
   } catch (error) {
     console.error('Error updating image:', error);
@@ -123,11 +93,12 @@ const updateImage = async (req, res) => {
   }
 };
 
-const deleteImage = async (req, res) => {
+exports.deleteImage = async (req, res) => {
   try {
     const image = await Image.findById(req.params.id);
-    if (!image) return res.status(404).json({ error: 'Image not found' });
-
+    if (!image) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
     if (image.cloudinaryPublicId) {
       try {
         await deleteFromCloudinary(image.cloudinaryPublicId);
@@ -135,25 +106,10 @@ const deleteImage = async (req, res) => {
         console.error('Error deleting from Cloudinary:', error);
       }
     }
-
     await Image.findByIdAndDelete(req.params.id);
-
-    await cache.del('images:all');
-    await cache.del(`images:station:${image.station}`);
-    await cache.del('images:stations');
-
     res.json({ message: 'Image deleted successfully' });
   } catch (error) {
     console.error('Error deleting image:', error);
     res.status(500).json({ error: 'Failed to delete image' });
   }
-};
-
-module.exports = {
-  getAllImages,
-  getImageStations,
-  getImageById,
-  createImage,
-  updateImage,
-  deleteImage
 };
